@@ -1,0 +1,46 @@
+name: Imagem da Evolution Go 0.7.2 com a correção do 405
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Código oficial, na versão 0.7.2
+      - name: Baixa a Evolution Go 0.7.2
+        run: git clone --depth 1 --branch 0.7.2 https://github.com/evolution-foundation/evolution-go.git upstream
+
+      # Só as 5 linhas do PR #227 (store.SetWAVersion com a versão atual do WhatsApp Web)
+      - name: Aplica a correção do "Client outdated (405)"
+        run: |
+          cd upstream
+          git apply --verbose ../fix-405.patch
+          grep -n "store.SetWAVersion" pkg/whatsmeow/service/whatsmeow.go
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: upstream
+          platforms: linux/amd64
+          push: true
+          build-args: VERSION=0.7.2-fix405
+          tags: ghcr.io/${{ github.repository_owner }}/evolution-go:0.7.2-fix405
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=Evolution Go 0.7.2 + correção do Client outdated (405) (PR #227)
